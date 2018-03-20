@@ -51,6 +51,15 @@ dl dd {
   font-size: 16px;
 }
 
+.title {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.title .remark-slide-number {
+  display: none;
+}
+
 .inverted {
   color: white;
   background-color: black;
