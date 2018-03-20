@@ -1,65 +1,74 @@
-#include <DHT.h>
+#include <ESP8266WiFi.h>
 
 #include "pins.h"
 #include "wifi.h"
+#include "html.h"
 #include "secrets.h"
 
-#define HTTP_HOST "api.thingspeak.com"
-#define HTTP_PORT 80
-
-DHT sensor(D1, DHT11);
-float hum = 0, temp = 0;
+WiFiServer server(80);
+byte b1 = LOW;
+byte b1_prev = LOW;
+byte b2 = LOW;
+byte b2_prev = LOW;
+int counter = 0;
 
 void setup() {
-  // initialize serial
+  // Initialize serial
   Serial.begin(115200);
 
-  // initialize sensor
-  sensor.begin();
+  // Initialize gpio pins
+  pinMode(D1, INPUT);
+  pinMode(D2, INPUT);
 
-  // connect to wifi
+  // Connect to WiFi network
   connectToWiFi(WLAN_SSID, WLAN_PASS);
   printWifiStatus();
+
+  // Start the TCP server
+  server.begin();
+  Serial.println("\nServer started");
 }
 
 void loop() {
-  hum = sensor.readHumidity();
-  temp = sensor.readTemperature();
 
-  Serial.print("Humidity: ");
-  Serial.print(hum);
-  Serial.print("%; Temperature: ");
-  Serial.print(temp);
-  Serial.println("ºC");
+  // Read value from gpio pins
+  b1 = digitalRead(D1);
+  b2 = digitalRead(D2);
 
-  WiFiClient client;
-  if (!client.connect(HTTP_HOST, HTTP_PORT)) {
-    Serial.println("connection failed");
+  // Check which pins go from HIGH to LOW or LOW to HIGH
+  if (b1_prev == LOW && b1 == HIGH) {
+    counter--;
+    Serial.println(counter);
+    b1_prev = HIGH;
+  } else if (b1_prev == HIGH && b1 == LOW) {
+    b1_prev = LOW;
+  }
+
+  if (b2_prev == LOW && b2 == HIGH) {
+    counter++;
+    Serial.println(counter);
+    b2_prev = HIGH;
+  } else if (b2_prev == HIGH && b2 == LOW) {
+    b2_prev = LOW;
+  }
+
+  // Check if there are clients connect to our TCP server
+  WiFiClient client = server.available();
+  if (!client) {
     return;
   }
 
-  /* post thingspeak update payload to the server */
-  String message = String("") + F("field1=") + String(hum) + F("&field2=") + String(temp);
-  client.print("POST /update HTTP/1.1\r\n");
-  client.print("Host: api.thingspeak.com\r\n");
-  client.print("Connection: close\r\n");
-  client.print("X-ThingSpeakAPIKey: ");
-  client.print(THINGSPEAK_API_KEY);
-  client.print("\r\n");
-  client.print("Content-Type: application/x-www-form-urlencoded\r\n");
-  client.print("Content-Length: ");
-  client.print(message.length());
-  client.print("\r\n\r\n");
-  client.print(message);
-  client.print("\r\n");
-
-  /* read response from the server and print it to serial */
-  while (client.connected()) {
-    if (client.available()) {
-      Serial.print((char)client.read());
-    }
+  // Read (and discard) the client request data
+  while (!client.available()) {
+    client.read();
   }
-  Serial.println("");
 
-  delay(20000);
+  // Send HTTP reply to the client
+  client.flush();
+  client.println(beginHTML());
+  client.print("<h1>");
+  client.print(counter);
+  client.println("</h1>");
+  client.println(endHTML());
+
 }
