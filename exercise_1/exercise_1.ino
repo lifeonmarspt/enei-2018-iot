@@ -46,7 +46,7 @@ void loop() {
   }
 
   // We now create a URI for the request
-  String url = "/Porto?T";
+  String url = "/Porto,Portugal?T";
 
   Serial.print("Requesting URL: ");
   Serial.println(url);
